@@ -1,0 +1,175 @@
+<style> 
+#map {
+  position: relative;
+  width: 700px;
+  height: 400px;
+  float: left;
+}
+
+</style>            
+    <script>
+			var map = null;
+			var drawingManager;
+			var selectedShape;
+
+			function get_polygon_centroid(pts) {
+				//console.log(pts);
+			   var first = pts[0], last = pts[pts.length-1];
+			   //if (first.x != last.x || first.y != last.y) pts.push(first);
+				//console.log(pts);
+			   var twicearea=0,
+			   x=0, y=0,
+			   nPts = pts.length,
+			   p1, p2, f;
+			   for ( var i=0, j=nPts-1 ; i<nPts ; j=i++ ) {
+				  p1 = pts[i]; p2 = pts[j];
+				  f = (p1.y - first.y) * (p2.x - first.x) - (p2.y - first.y) * (p1.x - first.x);
+				  twicearea += f;
+				  x += (p1.x + p2.x - 2 * first.x) * f;
+				  y += (p1.y + p2.y - 2 * first.y) * f;
+			   }
+				//console.log(x,y);
+			   f = twicearea * 3;
+			   return { x:x/f + first.x, y:y/f + first.y };
+			}
+
+			function clearSelection () {
+                if (selectedShape) {
+                    if (selectedShape.type !== 'marker') {
+                        selectedShape.setEditable(false);
+                    }
+                    
+                    selectedShape = null;
+                }
+            }
+
+            function setSelection (shape) {
+                if (shape.type !== 'marker') {
+                    clearSelection();
+                    shape.setEditable(true);
+                }
+                
+                selectedShape = shape;
+			
+            }
+			
+            function deleteSelectedShape () {
+                if (selectedShape) {
+                    selectedShape.setMap(null);
+					document.getElementById('coords').value = "";
+					document.getElementById('corner').value = "";
+					document.getElementById('area').value = "";
+					document.getElementById('lat').value = "";
+					document.getElementById('lng').value = "";
+				}
+            }
+			
+			
+      function init() {
+	
+			  var mapOptions = {
+				'zoom': 9,
+				'center': new google.maps.LatLng(37.77743716057260,29.01345714845100),
+				'mapTypeId': google.maps.MapTypeId.ROADMAP,
+				'scaleControl': true
+			  }
+			  map = new google.maps.Map(document.getElementById("map"), mapOptions);
+
+				var polyOptions = {
+                    strokeWeight: 0,
+                    fillOpacity: 0.45,
+                    editable: true,
+                    draggable: true
+                };
+
+
+				drawingManager = new google.maps.drawing.DrawingManager({
+					drawingControl: true,
+                    draggable: true,
+					drawingControlOptions: {
+						drawingModes: ['polygon']
+					},
+                    map: map
+				});
+
+
+                google.maps.event.addListener(drawingManager, 'overlaycomplete', function (e) {
+                    var newShape = e.overlay;
+                    
+                    newShape.type = e.type;
+                    
+                    if (e.type !== google.maps.drawing.OverlayType.MARKER) {
+                        // Switch back to non-drawing mode after drawing a shape.
+                        drawingManager.setDrawingMode(null);
+
+                        google.maps.event.addListener(newShape, 'click', function (e) {
+                            if (e.vertex !== undefined) {
+                                if (newShape.type === google.maps.drawing.OverlayType.POLYGON) {
+                                    var path = newShape.getPaths().getAt(e.path);
+                                    path.removeAt(e.vertex);
+                                    if (path.length < 3) {
+                                        newShape.setMap(null);
+                                    }
+                                }
+                                if (newShape.type === google.maps.drawing.OverlayType.POLYLINE) {
+                                    var path = newShape.getPath();
+                                    path.removeAt(e.vertex);
+                                    if (path.length < 2) {
+                                        newShape.setMap(null);
+                                    }
+                                }
+                            }
+                            setSelection(newShape);
+                        });
+                        setSelection(newShape);
+                    }
+                    else {
+                        google.maps.event.addListener(newShape, 'click', function (e) {
+                            setSelection(newShape);
+                        });
+                        setSelection(newShape);
+                    }
+                });
+				
+				
+				function storeCoordinate(xVal, yVal, array) {
+					array.push({x: xVal, y: yVal});
+				}
+								
+				google.maps.event.addListener(drawingManager, 'polygoncomplete', function(polygon) {
+				var coordStr = "";
+				var mcoordStr = [];
+				for (var i = 0; i < polygon.getPath().getLength(); i++) {
+				  coordStr += polygon.getPath().getAt(i).lat() + " " + polygon.getPath().getAt(i).lng() + ",";
+				  storeCoordinate(polygon.getPath().getAt(i).lat(), polygon.getPath().getAt(i).lng(), mcoordStr);
+				  
+				  //console.log(mcoordStr);
+				  //console.log(get_polygon_centroid(mcoordStr));
+				  document.getElementById('coords').value = coordStr;
+				  document.getElementById('corner').value = polygon.getPath().getLength();
+				  document.getElementById('area').value = google.maps.geometry.spherical.computeArea(polygon.getPath()).toFixed(2);
+				  document.getElementById('lat').value = get_polygon_centroid(mcoordStr).x;
+				  document.getElementById('lng').value = get_polygon_centroid(mcoordStr).y;			  
+				}		
+			  });						
+				google.maps.event.addListener(drawingManager, 'drawingmode_changed', clearSelection);
+				google.maps.event.addDomListener(document.getElementById('delete-button'), 'click', deleteSelectedShape);
+				
+ 
+	}   
+
+    </script>	
+    <!--script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_KEY"></script-->
+	<script src="https://maps.google.com/maps/api/js?key=AIzaSyBq92AaoX9CT_VuQy5vRP2K0Qd9iYUwn9I&libraries=drawing" type="text/javascript"></script> 
+
+<body onload="init()">
+<button id="delete-button">Sil/Delete</button>
+
+	Coords:<input type="text" id="coords" name="coords" value=""/>
+	Area:<input type="text" id="area" name="area" value=""/>
+	Corner:<input type="text" id="corner" name="corner" value=""/>
+	Center Lat:<input type="text" id="lat" name="lat" value="x"/>
+	Center Lng:<input type="text" id="lng" name="lng" value="y"/>
+<hr/>
+
+  	<div id="map"></div>
